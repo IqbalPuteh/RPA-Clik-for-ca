@@ -1,0 +1,15 @@
+playwright=="1.54.0"
+asyncio
+fastapi 
+uvicorn
+python-dotenv 
+pydantic
+jinja2
+google-api-python-client 
+google-auth 
+google-auth-httplib2 
+google-auth-oauthlib
+
+
+
+# need to run syntax: playwright install on terminal

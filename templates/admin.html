@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Config Editor</title>
+  <script>
+    const API_KEY = "supersecret123";
+
+    async function loadConfig() {
+      const res = await fetch("/config", {
+        headers: { "X-API-Key": API_KEY }
+      });
+      const cfg = await res.json();
+      Object.entries(cfg).forEach(([k, v]) => {
+        const el = document.getElementById(k);
+        if (el.type === "checkbox") el.checked = v;
+        else el.value = v;
+      });
+    }
+
+    async function saveConfig(e) {
+      e.preventDefault();
+      const payload = {
+        LOGIN_URL: document.getElementById("LOGIN_URL").value,
+        USERNAME:  document.getElementById("USERNAME").value,
+        PASSWORD:  document.getElementById("PASSWORD").value,
+        BASE_URL:  document.getElementById("BASE_URL").value,
+        HEADLESS:  document.getElementById("HEADLESS").checked
+      };
+      const res = await fetch("/config", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": API_KEY
+        },
+        body: JSON.stringify(payload)
+      });
+      alert(res.ok ? "Configuration saved!" : "Error saving config");
+    }
+
+    window.onload = loadConfig;
+  </script>
+</head>
+<body>
+  <h1>Config Editor</h1>
+  <form onsubmit="saveConfig(event)">
+    <div><label>LOGIN_URL: <input id="LOGIN_URL" type="text"/></label></div>
+    <div><label>USERNAME:   <input id="USERNAME"   type="text"/></label></div>
+    <div><label>PASSWORD:   <input id="PASSWORD"   type="password"/></label></div>
+    <div><label>BASE_URL:   <input id="BASE_URL"   type="text"/></label></div>
+    <div><label>HEADLESS:   <input id="HEADLESS"   type="checkbox"/></label></div>
+    <button type="submit">Save</button>
+  </form>
+</body>
+</html>
