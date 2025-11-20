@@ -11,6 +11,10 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from config_helper import load_settings, update_env
 from fastapi.responses import HTMLResponse
+import sqlite3
+from contextlib import closing
+from datetime import datetime
+
 # --- GOOGLE DRIVE IMPORTS ---
 from google.auth.transport.requests import Request as GoogleRequest  
 from google.oauth2.credentials import Credentials
@@ -169,7 +173,7 @@ async def get_company(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"RPA & Drive upload completed successfully on attempt {attempt+1}. Drive Link: {web_link}"
+            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e
@@ -298,7 +302,7 @@ async def get_individual(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Individual RPA completed successfully on attempt {attempt+1}. Drive Link: {web_link}"
+            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e
@@ -330,6 +334,82 @@ async def get_individual(
         detail=f"Individual report failed after {max_retries} attempts. Last error: {str(last_error)}"
     )
 
+DB_NAME = "clik_data.db"
+
+# --- Pydantic Model for Response Only ---
+class MessageIdResponse(BaseModel):
+    message_id: str
+    is_new: bool
+
+# --- Database Setup ---
+def init_db():
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with closing(conn.cursor()) as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS id_mappings (
+                    submission_id TEXT PRIMARY KEY,
+                    message_id TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS counter_state (
+                    id INTEGER PRIMARY KEY,
+                    last_val INTEGER NOT NULL
+                )
+            """)
+            cursor.execute("INSERT OR IGNORE INTO counter_state (id, last_val) VALUES (1, 0)")
+            conn.commit()
+
+
+
+# --- Core Logic (Changed to GET) ---
+@app.get("/generate-id", response_model=MessageIdResponse)
+def get_or_create_message_id(submission_id):
+    
+    clean_submission_id = submission_id.strip()
+    
+    if not clean_submission_id:
+        raise HTTPException(status_code=400, detail="Submission ID cannot be empty")
+
+    with closing(sqlite3.connect(DB_NAME)) as conn:
+        with closing(conn.cursor()) as cursor:
+            
+            # 1. CHECK
+            cursor.execute("SELECT message_id FROM id_mappings WHERE submission_id = ?", (clean_submission_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                return MessageIdResponse(message_id=row[0], is_new=False)
+            
+            # 2. CREATE
+            try:
+                cursor.execute("SELECT last_val FROM counter_state WHERE id = 1")
+                current_val = cursor.fetchone()[0]
+                
+                next_val = (current_val % 99999) + 1
+                
+                counter_string = f"{next_val:05d}"
+                now = datetime.now()
+                month = now.strftime("%m")
+                year = now.strftime("%Y")
+                type_code = "FTICLI"
+                
+                new_message_id = f"{counter_string}{type_code}{month}{year}"
+                
+                cursor.execute("UPDATE counter_state SET last_val = ? WHERE id = 1", (next_val,))
+                cursor.execute("INSERT INTO id_mappings (submission_id, message_id) VALUES (?, ?)", 
+                               (clean_submission_id, new_message_id))
+                conn.commit()
+                
+                return MessageIdResponse(message_id=new_message_id, is_new=True)
+                
+            except Exception as e:
+                print(e)
+                conn.rollback()
+                raise HTTPException(status_code=500, detail=str(e))
+
+
 # ---= Experimental section =---
 # ---  API-Key Security ---
 API_KEY = "supersecret098"
@@ -359,6 +439,8 @@ templates = Jinja2Templates(directory="templates")
     response_model=ConfigModel,
 )
 def get_config():
+    # Initialize DB on startup
+    init_db()
     return load_settings()
 
 @app.put(
@@ -380,7 +462,7 @@ def admin_page(request: Request):
 if __name__ == "__main__":
     uvicorn.run(
         "new-main:app",        
-        host="localhost",
+        host="0.0.0.0",
         port=8000,
         reload=True
     )
