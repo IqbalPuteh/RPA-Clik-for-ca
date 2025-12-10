@@ -87,7 +87,7 @@ async def read_root():
     
 @app.get("/get_company")
 async def get_company(
-    message_id: str = "00026FTISLSV2025",
+    message_id: str = "00001FTICLK2025",
     trade_name: str = "PT Prima Tata Solusindo",
     address: str = "Gedung Graha Pena Jawa Pos Lt.5, Jl Raya Kebayoran Lama No.12",
     sub_district: str = "GROGOL UTARA",
@@ -147,24 +147,6 @@ async def get_company(
             await page.locator("#ContractModel_ContractDataModelCredit_ApplicationAmount").fill("100000000")
             await page.get_by_text("Submit").click()
 
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            html_filename = f"{message_id}_company_{timestamp}.html"
-
-            # --- Save current HTML view ---
-            await page.wait_for_load_state("load")
-            html_content = await page.content()
-            with open(html_filename, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            logger.info(f"HTML successfully saved locally as: {html_filename}")
-
-            # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
-
-            # --- Cleanup ---
-            if os.path.exists(html_filename):
-                os.remove(html_filename)
-                logger.info(f"Local file {html_filename} removed.")            
-
             await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             pdf_filename = f"{message_id}_company_{timestamp}.pdf"
@@ -179,7 +161,7 @@ async def get_company(
             logger.info(f"PDF successfully saved locally as: {pdf_filename}")
             
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
+            file_id, web_link = await upload_to_drive(pdf_filename, message_id)
             
             # --- Cleanup ---
             if os.path.exists(pdf_filename):
@@ -191,7 +173,7 @@ async def get_company(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e
@@ -227,7 +209,7 @@ async def get_company(
 
 @app.get("/get_individual")
 async def get_individual(
-    message_id: str = "00026FTISLSV2025",
+    message_id: str = "00026FTICREVI2026",
     name: str = "Tri Wahyudin",
     birth_date: str = "1977/11/26",
     gender: str = "L",
@@ -294,24 +276,6 @@ async def get_individual(
             await page.locator("#ContractModel_ContractDataModelCredit_ApplicationAmount").fill("100000000")
             await page.get_by_text("Submit").click()
 
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            html_filename = f"{message_id}_individual_{timestamp}.html"
-
-            # --- Save current HTML view ---
-            await page.wait_for_load_state("load")
-            html_content = await page.content()
-            with open(html_filename, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            logger.info(f"HTML successfully saved locally as: {html_filename}")
-
-            # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
-
-            # --- Cleanup ---
-            if os.path.exists(html_filename):
-                os.remove(html_filename)
-                logger.info(f"Local file {html_filename} removed.")             
-
             await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             pdf_filename = f"{message_id}_individual_{timestamp}.pdf"
@@ -326,7 +290,7 @@ async def get_individual(
             logger.info(f"PDF successfully saved locally as: {pdf_filename}")
             
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
+            file_id, web_link = await upload_to_drive(pdf_filename, message_id)
             
             # --- Cleanup ---
             if os.path.exists(pdf_filename):
@@ -338,7 +302,7 @@ async def get_individual(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e

@@ -5,6 +5,7 @@ from config import USERNAME, PASSWORD, LOGIN_URL, HEADLESS
 import logging
 import time
 import os
+import mimetypes
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -59,7 +60,9 @@ async def upload_to_drive(file_path: str, message_id: str):
             'name': os.path.basename(file_path),
             'parents': [SHARED_DRIVE_FOLDER_ID]
         }
-        media = MediaFileUpload(file_path, mimetype='application/pdf')
+        # infer mimetype from file extension so HTML or PDF both upload correctly
+        mtype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+        media = MediaFileUpload(file_path, mimetype=mtype)
         file = service.files().create(
             body=file_metadata,
             media_body=media,
@@ -83,11 +86,11 @@ logger = logging.getLogger(__name__)
 
 @app.get("/")
 async def read_root():
-    return {"message": "Welcome to RPA Click for FTI Credit Analyst ver. 1.0"}
+    return {"message": "Welcome to RPA Click for FTI Credit Analyst ver. 1.3"}
     
 @app.get("/get_company")
 async def get_company(
-    message_id: str = "00026FTISLSV2025",
+    message_id: str = "00025FTICREVI2026",
     trade_name: str = "PT Prima Tata Solusindo",
     address: str = "Gedung Graha Pena Jawa Pos Lt.5, Jl Raya Kebayoran Lama No.12",
     sub_district: str = "GROGOL UTARA",
@@ -147,24 +150,6 @@ async def get_company(
             await page.locator("#ContractModel_ContractDataModelCredit_ApplicationAmount").fill("100000000")
             await page.get_by_text("Submit").click()
 
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            html_filename = f"{message_id}_company_{timestamp}.html"
-
-            # --- Save current HTML view ---
-            await page.wait_for_load_state("load")
-            html_content = await page.content()
-            with open(html_filename, "w", encoding="utf-8") as f:
-                f.write(html_content)
-            logger.info(f"HTML successfully saved locally as: {html_filename}")
-
-            # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
-
-            # --- Cleanup ---
-            if os.path.exists(html_filename):
-                os.remove(html_filename)
-                logger.info(f"Local file {html_filename} removed.")            
-
             await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             pdf_filename = f"{message_id}_company_{timestamp}.pdf"
@@ -179,7 +164,7 @@ async def get_company(
             logger.info(f"PDF successfully saved locally as: {pdf_filename}")
             
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
+            file_id, web_link = await upload_to_drive(pdf_filename, message_id)
             
             # --- Cleanup ---
             if os.path.exists(pdf_filename):
@@ -191,7 +176,7 @@ async def get_company(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e
@@ -227,7 +212,7 @@ async def get_company(
 
 @app.get("/get_individual")
 async def get_individual(
-    message_id: str = "00026FTISLSV2025",
+    message_id: str = "00026FTICREVI2026",
     name: str = "Tri Wahyudin",
     birth_date: str = "1977/11/26",
     gender: str = "L",
@@ -294,6 +279,7 @@ async def get_individual(
             await page.locator("#ContractModel_ContractDataModelCredit_ApplicationAmount").fill("100000000")
             await page.get_by_text("Submit").click()
 
+            await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             html_filename = f"{message_id}_individual_{timestamp}.html"
 
@@ -305,40 +291,19 @@ async def get_individual(
             logger.info(f"HTML successfully saved locally as: {html_filename}")
 
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
+            file_id, web_link = await upload_to_drive(html_filename, message_id)
 
             # --- Cleanup ---
             if os.path.exists(html_filename):
                 os.remove(html_filename)
-                logger.info(f"Local file {html_filename} removed.")             
-
-            await page.wait_for_load_state("load")
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            pdf_filename = f"{message_id}_individual_{timestamp}.pdf"
-
-            # --- PDF Download ---
-            page.set_default_timeout(120000)
-            async with page.expect_download() as download_info:
-                await page.get_by_role("link", name=" View PDF").click()
-            
-            download = await download_info.value
-            await download.save_as(pdf_filename)
-            logger.info(f"PDF successfully saved locally as: {pdf_filename}")
-            
-            # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
-            
-            # --- Cleanup ---
-            if os.path.exists(pdf_filename):
-                os.remove(pdf_filename)
-                logger.info(f"Local file {pdf_filename} removed.")
+                logger.info(f"Local file {html_filename} removed.")
 
             await context.close()
             await browser.close()
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link}"
 
         except Exception as e:
             last_error = e
@@ -497,7 +462,7 @@ def admin_page(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(
-        "new-main:app",        
+        "test-html:app",        
         host="0.0.0.0",
         port=8000,
         reload=True
