@@ -7,4 +7,4 @@ LOGIN_URL_PROD="https://cbsnusantara.cbclik.com/Account/Login"
 USERNAME_PROD ="NEFO4081"
 PASSWORD_PROD ="Ptfti2025"
 BASE_URL_PROD = "https://cbsnusantara.cbclik.com/"
-HEADLESS = False
+HEADLESS =True

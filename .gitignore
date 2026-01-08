@@ -3,3 +3,17 @@ token.json
 *.pyc
 __pycache__/
 .venv/
+# Databases - very important!
+*.db
+*.sqlite
+*.sqlite3
+
+# Local config / secrets (create a config.example.py instead)
+config_local.py
+.env
+*.env
+
+# Temp / logs / debug
+*.log
+temp/
+cache/
