@@ -1,55 +1,504 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Config Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration Editor | Admin Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary-color: #4361ee;
+      --primary-dark: #3a56d4;
+      --success-color: #2ecc71;
+      --danger-color: #e74c3c;
+      --bg-color: #f8f9fa;
+      --card-color: #ffffff;
+      --text-color: #333333;
+      --text-secondary: #6c757d;
+      --border-color: #e0e0e0;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --radius: 8px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .header h1 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .header h1 i {
+      font-size: 1.8rem;
+    }
+
+    .last-saved {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .config-card {
+      background: var(--card-color);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--text-color);
+      font-size: 0.95rem;
+    }
+
+    .form-group .label-text {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .field-description {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-weight: normal;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .checkbox-group label {
+      margin-bottom: 0;
+      cursor: pointer;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-top: 30px;
+      padding-top: 25px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn {
+      padding: 12px 28px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background-color: #f1f3f9;
+      color: var(--text-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: #e4e8f5;
+    }
+
+    .notification {
+      position: fixed;
+      top: 30px;
+      right: 30px;
+      padding: 16px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transform: translateX(400px);
+      transition: transform 0.3s ease;
+      z-index: 1000;
+    }
+
+    .notification.show {
+      transform: translateX(0);
+    }
+
+    .notification.success {
+      background-color: var(--success-color);
+      color: white;
+    }
+
+    .notification.error {
+      background-color: var(--danger-color);
+      color: white;
+    }
+
+    .notification i {
+      font-size: 1.2rem;
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 10px;
+      }
+      
+      .config-card {
+        padding: 20px;
+      }
+      
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      
+      .actions {
+        flex-direction: column;
+      }
+      
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .notification {
+        left: 20px;
+        right: 20px;
+        top: 20px;
+      }
+    }
+
+    .security-warning {
+      background-color: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin-bottom: 25px;
+      border-radius: 4px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .security-warning i {
+      color: #ffc107;
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        <i class="fas fa-sliders-h"></i>
+        Configuration Editor
+      </h1>
+      <div class="last-saved" id="lastSaved">Last saved: Never</div>
+    </div>
+
+    <div class="security-warning">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div>
+        <strong>Security Note:</strong> This configuration interface should be protected with authentication 
+        and not exposed publicly. Consider moving API key handling to server-side.
+      </div>
+    </div>
+
+    <div class="config-card">
+      <form id="configForm">
+        <div class="form-group">
+          <div class="label-text">
+            <label for="LOGIN_URL">Login URL</label>
+            <span class="field-description">The endpoint for user authentication</span>
+          </div>
+          <input type="text" id="LOGIN_URL" class="form-control" placeholder="https://example.com/login">
+        </div>
+
+        <div class="form-group">
+          <div class="label-text">
+            <label for="USERNAME">Username</label>
+            <span class="field-description">Default username for the application</span>
+          </div>
+          <input type="text" id="USERNAME" class="form-control" placeholder="admin">
+        </div>
+
+        <div class="form-group">
+          <div class="label-text">
+            <label for="PASSWORD">Password</label>
+            <span class="field-description">Default password (stored securely)</span>
+          </div>
+          <input type="password" id="PASSWORD" class="form-control" placeholder="••••••••">
+        </div>
+
+        <div class="form-group">
+          <div class="label-text">
+            <label for="BASE_URL">Base URL</label>
+            <span class="field-description">The base URL for all API requests</span>
+          </div>
+          <input type="text" id="BASE_URL" class="form-control" placeholder="https://api.example.com/v1">
+        </div>
+
+        <div class="form-group">
+          <div class="label-text">
+            <label>Headless Mode</label>
+            <span class="field-description">Run browser in background without GUI</span>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="HEADLESS">
+            <label for="HEADLESS">Enable headless mode</label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-secondary" onclick="loadConfig()">
+            <i class="fas fa-redo"></i> Reload Config
+          </button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">
+            <i class="fas fa-save"></i> Save Configuration
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="footer">
+      <p>Configuration Editor v1.0 &copy; 2023 | Use with caution in production environments</p>
+    </div>
+  </div>
+
+  <div class="notification" id="notification"></div>
+
   <script>
+    // IMPORTANT: In a real application, NEVER expose API keys in frontend code
+    // This should be handled via secure server-side authentication
     const API_KEY = "supersecret123";
+    let saveInProgress = false;
+
+    function showNotification(message, type = 'success') {
+      const notification = document.getElementById('notification');
+      notification.className = `notification ${type} show`;
+      notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+        <span>${message}</span>
+      `;
+      
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 4000);
+    }
+
+    function updateLastSavedTime() {
+      const now = new Date();
+      const formatted = now.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      document.getElementById('lastSaved').textContent = `Last saved: ${formatted}`;
+    }
 
     async function loadConfig() {
-      const res = await fetch("/config", {
-        headers: { "X-API-Key": API_KEY }
-      });
-      const cfg = await res.json();
-      Object.entries(cfg).forEach(([k, v]) => {
-        const el = document.getElementById(k);
-        if (el.type === "checkbox") el.checked = v;
-        else el.value = v;
-      });
+      try {
+        const res = await fetch("/config", {
+          headers: { "X-API-Key": API_KEY }
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Failed to load config: ${res.status}`);
+        }
+        
+        const cfg = await res.json();
+        
+        // Match the backend load_settings() function logic
+        Object.entries(cfg).forEach(([k, v]) => {
+          const el = document.getElementById(k);
+          if (el) {
+            if (el.type === "checkbox") {
+              // Handle HEADLESS conversion from string to boolean
+              if (typeof v === 'string') {
+                el.checked = v.toLowerCase() === 'true' || v === '1';
+              } else {
+                el.checked = Boolean(v);
+              }
+            } else {
+              el.value = v || "";
+            }
+          }
+        });
+        
+        showNotification('Configuration loaded successfully', 'success');
+      } catch (error) {
+        console.error('Error loading config:', error);
+        showNotification('Error loading configuration', 'error');
+      }
     }
 
     async function saveConfig(e) {
       e.preventDefault();
-      const payload = {
-        LOGIN_URL: document.getElementById("LOGIN_URL").value,
-        USERNAME:  document.getElementById("USERNAME").value,
-        PASSWORD:  document.getElementById("PASSWORD").value,
-        BASE_URL:  document.getElementById("BASE_URL").value,
-        HEADLESS:  document.getElementById("HEADLESS").checked
-      };
-      const res = await fetch("/config", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": API_KEY
-        },
-        body: JSON.stringify(payload)
-      });
-      alert(res.ok ? "Configuration saved!" : "Error saving config");
+      
+      if (saveInProgress) return;
+      
+      const saveBtn = document.getElementById('saveBtn');
+      const originalText = saveBtn.innerHTML;
+      
+      try {
+        saveInProgress = true;
+        saveBtn.innerHTML = '<div class="loading"></div> Saving...';
+        saveBtn.disabled = true;
+        
+        // Create payload matching ConfigModel format
+        // Convert HEADLESS to string "True"/"False" to match your update_env function
+        const payload = {
+          LOGIN_URL: document.getElementById("LOGIN_URL").value.trim(),
+          USERNAME: document.getElementById("USERNAME").value.trim(),
+          PASSWORD: document.getElementById("PASSWORD").value,
+          BASE_URL: document.getElementById("BASE_URL").value.trim(),
+          HEADLESS: document.getElementById("HEADLESS").checked ? "True" : "False"
+        };
+        
+        console.log('Sending payload:', payload); // For debugging
+        
+        const res = await fetch("/config", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": API_KEY
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(`Server returned ${res.status}: ${errorText}`);
+        }
+        
+        const responseData = await res.json();
+        console.log('Server response:', responseData); // For debugging
+        
+        updateLastSavedTime();
+        showNotification('Configuration saved successfully!', 'success');
+        
+      } catch (error) {
+        console.error('Error saving config:', error);
+        showNotification(`Error saving configuration: ${error.message}`, 'error');
+      } finally {
+        saveInProgress = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Configuration';
+        saveBtn.disabled = false;
+      }
     }
 
-    window.onload = loadConfig;
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('configForm').addEventListener('submit', saveConfig);
+      loadConfig();
+    });
+
+    // Add keyboard shortcut (Ctrl+S) to save
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('configForm').requestSubmit();
+      }
+    });
+
+    // Add visibility change handler to reload config when page becomes visible
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        loadConfig();
+      }
+    });
   </script>
-</head>
-<body>
-  <h1>Config Editor</h1>
-  <form onsubmit="saveConfig(event)">
-    <div><label>LOGIN_URL: <input id="LOGIN_URL" type="text"/></label></div>
-    <div><label>USERNAME:   <input id="USERNAME"   type="text"/></label></div>
-    <div><label>PASSWORD:   <input id="PASSWORD"   type="password"/></label></div>
-    <div><label>BASE_URL:   <input id="BASE_URL"   type="text"/></label></div>
-    <div><label>HEADLESS:   <input id="HEADLESS"   type="checkbox"/></label></div>
-    <button type="submit">Save</button>
-  </form>
 </body>
 </html>

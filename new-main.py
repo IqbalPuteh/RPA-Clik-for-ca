@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, status, Request, Depends
 import uvicorn, asyncio
 from playwright.async_api import async_playwright  
-from config import USERNAME, PASSWORD, LOGIN_URL, HEADLESS 
+from config import USERNAME, PASSWORD, LOGIN_URL, HEADLESS, BASE_URL
 import logging
 import time
 import os
@@ -37,7 +37,7 @@ async def authenticate_user():
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(GoogleRequest())  # Use the aliased GoogleRequest
+            creds.refresh(GoogleRequest())  
         else:
             print("Launching browser for initial authentication. Please sign in...")
             flow = InstalledAppFlow.from_client_secrets_file(
@@ -81,21 +81,24 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@app.get("/")
+@app.post("/")
 async def read_root():
-    return {"message": "Welcome to RPA Click for FTI Credit Analyst ver. 1.0"}
+    return {"message": "Welcome to RPA Click for FTI Credit Analyst ver. 1.2"}
     
-@app.get("/get_company")
-async def get_company(
-    message_id: str = "00026FTISLSV2025",
-    trade_name: str = "PT Prima Tata Solusindo",
-    address: str = "Gedung Graha Pena Jawa Pos Lt.5, Jl Raya Kebayoran Lama No.12",
-    sub_district: str = "GROGOL UTARA",
-    district: str = "KEBAYORAN LAMA",
-    postal_code: str = "20146",
-    business_number: str = "028822948013000",
-    phone: str = "08119931126"
-) -> str:
+# /get_company parameter class for POST
+class CompanyRequest(BaseModel): 
+    message_id: str 
+    trade_name: str 
+    address: str 
+    sub_district: str 
+    district: str 
+    city_code: str
+    postal_code: str 
+    business_number: str 
+    phone: str 
+
+@app.post("/get_company")
+async def get_company(req: CompanyRequest) -> str:
     playwright = None
     browser = None
     context = None
@@ -104,41 +107,40 @@ async def get_company(
     base_delay = 5
     last_error = None
     pdf_filename = None
-      
+
     for attempt in range(0, max_retries):
         try:
             playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(headless=HEADLESS)
+            browser = await playwright.chromium.launch(headless=False) 
             context = await browser.new_context()
             page = await context.new_page()
-            
-            # --- RPA steps ---
+
+            # --- RPA steps (example using req fields) ---
             await page.goto(LOGIN_URL)
             await page.wait_for_load_state("load")
             await page.get_by_role("button", name="").click()
             await page.get_by_role("link", name="English").click()
 
+            await page.wait_for_load_state("load")
             await page.get_by_role("textbox", name="Username").fill(USERNAME)
             await page.get_by_role("textbox", name="Password").fill(PASSWORD)
             await page.get_by_role("button", name="Login").click()
-            
+
             await page.wait_for_load_state("load")
             await page.get_by_role("link", name="Company").nth(2).click()
 
             await page.wait_for_load_state("load")
             await page.locator("#CompanyModel_PurposeOfEnquiry").select_option("20")
-            await page.locator("#CompanyModel_CompanyDataModel_MessageID").fill(message_id)
-            await page.locator("#CompanyModel_CompanyDataModel_TradeName").fill(trade_name)
-            await page.get_by_role("textbox", name="FIELD 'ADDRESS' LENGTH IS NOT").fill(address)
-            await page.get_by_role("textbox", name="FIELD 'SUB DISTRICT' IS").fill(sub_district)
-            await page.get_by_role("textbox", name="FIELD 'DISTRICT' IS MANDATORY").fill(district)
-            await page.locator("#CompanyModel_AddressDataModel_City").select_option("0394")
-            await page.get_by_role("textbox", name="FIELD 'POSTAL CODE' IS").fill(postal_code)
-            await page.locator("#CompanyModel_AddressDataModel_Country").select_option("ID")
-            await page.locator("#CompanyModel_IdentificationCodeModel_BusniessNumber").fill(business_number)
-            await page.get_by_role("textbox", name="AT LEAST ONE BETWEEN 'PHONE").fill(phone)
-
-            await page.wait_for_load_state("load")
+            await page.locator("#CompanyModel_CompanyDataModel_MessageID").fill(req.message_id)
+            await page.locator("#CompanyModel_CompanyDataModel_TradeName").fill(req.trade_name)
+            await page.get_by_role("textbox", name="FIELD 'ADDRESS' LENGTH IS NOT").fill(req.address)
+            await page.get_by_role("textbox", name="FIELD 'SUB DISTRICT' IS").fill(req.sub_district)
+            await page.get_by_role("textbox", name="FIELD 'DISTRICT' IS MANDATORY").fill(req.district)
+            await page.locator("#CompanyModel_AddressDataModel_City").select_option(req.city_code)
+            await page.get_by_role("textbox", name="FIELD 'POSTAL CODE' IS").fill(req.postal_code)
+            await page.locator("#CompanyModel_AddressDataModel_Country").select_option("ID")            
+            await page.locator("#CompanyModel_IdentificationCodeModel_BusniessNumber").fill(req.business_number)
+            await page.get_by_role("textbox", name="AT LEAST ONE BETWEEN 'PHONE").fill(req.phone)
             await page.get_by_text("Next").click()
 
             await page.wait_for_load_state("load")
@@ -148,7 +150,7 @@ async def get_company(
             await page.get_by_text("Submit").click()
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            html_filename = f"{message_id}_company_{timestamp}.html"
+            html_filename = f"{req.message_id}_company_{timestamp}.html"
 
             # --- Save current HTML view ---
             await page.wait_for_load_state("load")
@@ -158,7 +160,7 @@ async def get_company(
             logger.info(f"HTML successfully saved locally as: {html_filename}")
 
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
+            file_id, web_link02 = await upload_to_drive(html_filename, req.message_id)
 
             # --- Cleanup ---
             if os.path.exists(html_filename):
@@ -167,7 +169,7 @@ async def get_company(
 
             await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            pdf_filename = f"{message_id}_company_{timestamp}.pdf"
+            pdf_filename = f"{req.message_id}_company_{timestamp}.pdf"
 
             # --- PDF Download ---
             page.set_default_timeout(120000)
@@ -179,45 +181,32 @@ async def get_company(
             logger.info(f"PDF successfully saved locally as: {pdf_filename}")
             
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
+            file_id, web_link01 = await upload_to_drive(pdf_filename, req.message_id)
             
             # --- Cleanup ---
             if os.path.exists(pdf_filename):
                 os.remove(pdf_filename)
                 logger.info(f"Local file {pdf_filename} removed.")
-                
+
             await context.close()
             await browser.close()
             await playwright.stop()
-            
-            logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Company RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+
+            return f"Company RPA completed successfully on POST methode at attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
 
         except Exception as e:
             last_error = e
             logger.error(f"Attempt {attempt+1} failed: {str(e)}")
-            
-            # --- Cleanup on failure ---
-            if page:
-                await page.screenshot(path=f"ss-comp-error-attempt{attempt+1}.png")
             if context:
                 await context.close()
             if browser:
                 await browser.close()
             if playwright:
                 await playwright.stop()
-            
-            # --- Retry logic ---
             if attempt < max_retries - 1:
                 delay = base_delay * (2 ** attempt)
-                logger.info(f"Retrying in {delay} seconds...")
                 await asyncio.sleep(delay)
-            
-            # Clean up local PDF if it was created before failure
-            if pdf_filename and os.path.exists(pdf_filename):
-                os.remove(pdf_filename)
-                logger.info(f"Local file {pdf_filename} removed after failure.")
-    
+
     # If all attempts failed
     logger.error("All retry attempts on Company report failed")
     raise HTTPException(
@@ -225,22 +214,22 @@ async def get_company(
         detail=f"Company report failed after {max_retries} attempts. Last error: {str(last_error)}"
     )
 
-@app.get("/get_individual")
-async def get_individual(
-    message_id: str = "00026FTISLSV2025",
-    name: str = "Tri Wahyudin",
-    birth_date: str = "1977/11/26",
-    gender: str = "L",
-    address: str = "JL RAYA PKP GRAHA ARJUNA NO G",
-    sub_district: str = "KELAPA DUA WETAN",
-    district: str = "CIRACAS",
-    city: str = "0395",
-    postal_code: str = "13730",
-    country: str = "ID",
-    identity_type: str = "1",
-    id_number: str = "3276052611770004",
-    phone_number: str = "08119931126"
-) -> str:
+class IndividualRequest(BaseModel):
+    message_id: str
+    name: str
+    birth_date: str
+    gender: str
+    address: str
+    sub_district: str
+    district: str
+    city: str
+    postal_code: str
+    identity_type: str
+    id_number: str
+    phone_number: str
+
+@app.post("/get_individual")
+async def get_individual(req: IndividualRequest) -> str:
     playwright = None
     browser = None
     context = None
@@ -262,7 +251,8 @@ async def get_individual(
             await page.wait_for_load_state("load")
             await page.get_by_role("button", name="").click()
             await page.get_by_role("link", name="English").click()
-
+            
+            await page.wait_for_load_state("load")
             await page.get_by_role("textbox", name="Username").fill(USERNAME)
             await page.get_by_role("textbox", name="Password").fill(PASSWORD)
             await page.get_by_role("button", name="Login").click()
@@ -272,20 +262,20 @@ async def get_individual(
 
             await page.wait_for_load_state("load")
             await page.locator("#IndividualModel_PurposeOfEnquiry").select_option("20")
-            await page.locator("#IndividualModel_IndividualDataModel_MessageID").fill(message_id)
-            await page.locator("#IndividualModel_IndividualDataModel_NameAsId").fill(name)
-            await page.get_by_role("textbox", name="YYYY/MM/DD").fill(birth_date)
+            await page.locator("#IndividualModel_IndividualDataModel_MessageID").fill(req.message_id)
+            await page.locator("#IndividualModel_IndividualDataModel_NameAsId").fill(req.name)
+            await page.get_by_role("textbox", name="YYYY/MM/DD").fill(req.birth_date)
             await page.get_by_role("textbox", name="YYYY/MM/DD").press("Enter")
-            await page.locator("#IndividualModel_IndividualDataModel_GenderCode").select_option(gender)
-            await page.get_by_role("textbox", name="FIELD 'ADDRESS' LENGTH IS NOT").fill(address)
-            await page.get_by_role("textbox", name="FIELD 'SUB DISTRICT' IS").fill(sub_district)
-            await page.get_by_role("textbox", name="FIELD 'DISTRICT' IS MANDATORY").fill(district)
-            await page.locator("#IndividualModel_AddressDataModel_City").select_option(city)
-            await page.get_by_role("textbox", name="FIELD 'POSTAL CODE' IS").fill(postal_code)
-            await page.locator("#IndividualModel_AddressDataModel_Country").select_option(country)
-            await page.locator("#IndividualModel_IdentificationCodeDataModel_Type").select_option(identity_type)
-            await page.locator("#IndividualModel_IdentificationCodeDataModel_Id").fill(id_number)
-            await page.locator("#IndividualModel_ContactDataModel_PhoneNumber").fill(phone_number)
+            await page.locator("#IndividualModel_IndividualDataModel_GenderCode").select_option(req.gender)
+            await page.get_by_role("textbox", name="FIELD 'ADDRESS' LENGTH IS NOT").fill(req.address)
+            await page.get_by_role("textbox", name="FIELD 'SUB DISTRICT' IS").fill(req.sub_district)
+            await page.get_by_role("textbox", name="FIELD 'DISTRICT' IS MANDATORY").fill(req.district)
+            await page.locator("#IndividualModel_AddressDataModel_City").select_option(req.city)
+            await page.get_by_role("textbox", name="FIELD 'POSTAL CODE' IS").fill(req.postal_code)
+            await page.locator("#IndividualModel_AddressDataModel_Country").select_option("ID")
+            await page.locator("#IndividualModel_IdentificationCodeDataModel_Type").select_option(req.identity_type)
+            await page.locator("#IndividualModel_IdentificationCodeDataModel_Id").fill(req.id_number)
+            await page.locator("#IndividualModel_ContactDataModel_PhoneNumber").fill(req.phone_number)
             await page.get_by_text("Next").click()
 
             await page.wait_for_load_state("load")
@@ -295,7 +285,7 @@ async def get_individual(
             await page.get_by_text("Submit").click()
 
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            html_filename = f"{message_id}_individual_{timestamp}.html"
+            html_filename = f"{req.message_id}_individual_{timestamp}.html"
 
             # --- Save current HTML view ---
             await page.wait_for_load_state("load")
@@ -305,7 +295,7 @@ async def get_individual(
             logger.info(f"HTML successfully saved locally as: {html_filename}")
 
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link02 = await upload_to_drive(html_filename, message_id)
+            file_id, web_link02 = await upload_to_drive(html_filename, req.message_id)
 
             # --- Cleanup ---
             if os.path.exists(html_filename):
@@ -314,7 +304,7 @@ async def get_individual(
 
             await page.wait_for_load_state("load")
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            pdf_filename = f"{message_id}_individual_{timestamp}.pdf"
+            pdf_filename = f"{req.message_id}_individual_{timestamp}.pdf"
 
             # --- PDF Download ---
             page.set_default_timeout(120000)
@@ -326,7 +316,7 @@ async def get_individual(
             logger.info(f"PDF successfully saved locally as: {pdf_filename}")
             
             # --- CALL GOOGLE DRIVE UPLOAD ---
-            file_id, web_link01 = await upload_to_drive(pdf_filename, message_id)
+            file_id, web_link01 = await upload_to_drive(pdf_filename, req.message_id)
             
             # --- Cleanup ---
             if os.path.exists(pdf_filename):
@@ -338,7 +328,7 @@ async def get_individual(
             await playwright.stop()
             
             logger.info(f"Attempt {attempt+1} succeeded")
-            return f"Individual RPA & Drive upload completed successfully on attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
+            return f"Individual RPA completed successfully on POST method at attempt #{attempt+1}. Drive Link: {web_link01}. Html Link: {web_link02}"
 
         except Exception as e:
             last_error = e
@@ -357,11 +347,6 @@ async def get_individual(
                 delay = base_delay * (2 ** attempt)
                 logger.info(f"Retrying in {delay} seconds...")
                 await asyncio.sleep(delay)
-                
-            # Clean up local PDF if it was created before failure
-            if pdf_filename and os.path.exists(pdf_filename):
-                os.remove(pdf_filename)
-                logger.info(f"Local file {pdf_filename} removed after failure.")
     
     # If all attempts failed
     logger.error("All retry attempts on Individual report failed")
@@ -370,14 +355,18 @@ async def get_individual(
         detail=f"Individual report failed after {max_retries} attempts. Last error: {str(last_error)}"
     )
 
-DB_NAME = "clik_data.db"
+# ''' Message ID Database ---
+DB_NAME = "reg_data.db"
 
-# --- Pydantic Model for Response Only ---
+# --- Pydantic Models ---
+class MessageIdRequest(BaseModel):
+    submission_id: str
+
 class MessageIdResponse(BaseModel):
     message_id: str
     is_new: bool
 
-# --- Database Setup ---
+# --- Initial Database Setup ---
 def init_db():
     with closing(sqlite3.connect(DB_NAME)) as conn:
         with closing(conn.cursor()) as cursor:
@@ -397,13 +386,11 @@ def init_db():
             cursor.execute("INSERT OR IGNORE INTO counter_state (id, last_val) VALUES (1, 0)")
             conn.commit()
 
-
-
-# --- Core Logic (Changed to GET) ---
-@app.get("/generate-id", response_model=MessageIdResponse)
-def get_or_create_message_id(submission_id):
+# --- Core Logic (Changed to POST) ---
+@app.post("/generate-id", response_model=MessageIdResponse)
+def get_or_create_message_id(request: MessageIdRequest):
     
-    clean_submission_id = submission_id.strip()
+    clean_submission_id = request.submission_id.strip()
     
     if not clean_submission_id:
         raise HTTPException(status_code=400, detail="Submission ID cannot be empty")
@@ -446,7 +433,6 @@ def get_or_create_message_id(submission_id):
                 raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---= Experimental section =---
 # ---  API-Key Security ---
 API_KEY = "supersecret098"
 API_KEY_NAME = "X-API-Key"
@@ -494,6 +480,116 @@ def admin_page(request: Request):
         "request": request,
         "config": cfg
     })
+
+@app.get("/db/counter-state/all")
+def get_counter_state_all():
+    """
+    Get all fields and values from counter_state table.
+    """
+    try:
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            conn.row_factory = sqlite3.Row
+            with closing(conn.cursor()) as cursor:
+                cursor.execute("SELECT * FROM counter_state where id = 1")
+                rows = cursor.fetchall()
+                
+                if not rows:
+                    raise HTTPException(
+                        status_code=404, 
+                        detail="counter_state table is empty"
+                    )
+                
+                # Get column names
+                cursor.execute("PRAGMA table_info(counter_state)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                result = {
+                    "table": "counter_state",
+                    "columns": columns,
+                    "data": [dict(row) for row in rows],
+                    "total_rows": len(rows),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                return result
+                
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from fastapi import Query
+
+# Pydantic models for structured responses
+class IdMappingRecord(BaseModel):
+    submission_id: str
+    message_id: str
+    created_at: str
+
+class IdMappingsResponse(BaseModel):
+    table_name: str
+    total_records: int
+    returned_records: int
+    columns: List[str]
+    data: List[Dict[str, Any]]
+    timestamp: str
+
+class PaginatedIdMappingsResponse(BaseModel):
+    table_name: str
+    columns: List[str]
+    data: List[IdMappingRecord]
+    pagination: Dict[str, Any]
+    timestamp: str
+
+# GET endpoint to view ALL id_mappings data (no pagination)
+@app.get("/db/id-mappings/all", response_model=IdMappingsResponse)
+def get_all_id_mappings():
+    """
+    Get ALL records from id_mappings table with all fields.
+    Warning: This might return large amounts of data.
+    """
+    try:
+        with closing(sqlite3.connect(DB_NAME)) as conn:
+            conn.row_factory = sqlite3.Row  # Enable dict-like access
+            with closing(conn.cursor()) as cursor:
+                
+                # Get all columns/fields from the table
+                cursor.execute("PRAGMA table_info(id_mappings)")
+                columns_info = cursor.fetchall()
+                columns = [col[1] for col in columns_info]
+                
+                # Get total count
+                cursor.execute("SELECT COUNT(*) FROM id_mappings")
+                total_records = cursor.fetchone()[0]
+                
+                # Get ALL data
+                cursor.execute("SELECT * FROM id_mappings ORDER BY created_at DESC")
+                rows = cursor.fetchall()
+                
+                # Convert rows to list of dictionaries
+                data = []
+                for row in rows:
+                    row_dict = {}
+                    for i, col_name in enumerate(columns):
+                        row_dict[col_name] = row[i]
+                    data.append(row_dict)
+                
+                return IdMappingsResponse(
+                    table_name="id_mappings",
+                    total_records=total_records,
+                    returned_records=len(data),
+                    columns=columns,
+                    data=data,
+                    timestamp=datetime.now().isoformat()
+                )
+                
+    except sqlite3.Error as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Database error: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     uvicorn.run(
