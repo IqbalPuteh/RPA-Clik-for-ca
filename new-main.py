@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from config_helper import load_settings, update_env
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 import sqlite3
 from contextlib import closing
 from datetime import datetime
@@ -81,7 +81,7 @@ app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@app.post("/")
+@app.get("/")
 async def read_root():
     return {"message": "Welcome to RPA Click for FTI Credit Analyst ver. 1.2"}
     
@@ -456,7 +456,7 @@ class ConfigModel(BaseModel):
 # --- FastAPI App Setup ---
 templates = Jinja2Templates(directory="templates")
 
-@app.get(
+@app.post(
     "/config",
     response_model=ConfigModel,
 )
@@ -473,7 +473,8 @@ def put_config(cfg: ConfigModel):
     update_env(cfg.dict())
     return cfg
 
-@app.get("/admin", response_class=HTMLResponse)
+from fastapi.responses import RedirectResponse
+@app.post("/admin", response_class=HTMLResponse)
 def admin_page(request: Request):
     cfg = load_settings()
     return templates.TemplateResponse("admin.html", {
@@ -481,7 +482,7 @@ def admin_page(request: Request):
         "config": cfg
     })
 
-@app.get("/db/counter-state/all")
+@app.post("/db/counter-state/all")
 def get_counter_state_all():
     """
     Get all fields and values from counter_state table.
@@ -543,7 +544,7 @@ class PaginatedIdMappingsResponse(BaseModel):
     timestamp: str
 
 # GET endpoint to view ALL id_mappings data (no pagination)
-@app.get("/db/id-mappings/all", response_model=IdMappingsResponse)
+@app.post("/db/id-mappings/all", response_model=IdMappingsResponse)
 def get_all_id_mappings():
     """
     Get ALL records from id_mappings table with all fields.
@@ -590,6 +591,21 @@ def get_all_id_mappings():
             detail=f"Database error: {str(e)}"
         )
 
+@app.post("/launcher", response_class=HTMLResponse)
+def launcher_page(request: Request):
+    return templates.TemplateResponse("launcher_admin_page.html", {"request": request})
+
+@app.get("/local-file")
+async def serve_local_file():
+    HTML_FILE_PATH = "./start_app.html"
+    """Open your local HTML file"""
+    if os.path.exists(HTML_FILE_PATH):
+        return FileResponse(HTML_FILE_PATH, media_type="text/html")
+    else:
+        return {
+            "error": f"HTML file not found: {HTML_FILE_PATH}",
+            "help": f"Create a file named '{HTML_FILE_PATH}' in the same directory"
+        }
 
 if __name__ == "__main__":
     uvicorn.run(

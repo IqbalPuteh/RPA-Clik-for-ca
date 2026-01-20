@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Launcher</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #3a56d4;
+        }
+    </style>
+</head>
+
+<body>
+
+    <button onclick="postAndShowHtml()">Launch Admin Panel</button>
+
+    <script>
+        async function postAndShowHtml() {
+            try {
+                // Calling the actual /admin endpoint
+                const response = await fetch('/admin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    // Sending dummy data as the current endpoint doesn't strictly require specific body content
+                    body: JSON.stringify({ access_granted: 'true' })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const html = await response.text();
+
+                // Option B: Replace current page (Standard behavior for a "launcher")
+                document.open();
+                document.write(html);
+                document.close();
+
+            } catch (error) {
+                console.error('Error fetching admin page:', error);
+                alert('Failed to launch admin panel. See console for details.');
+            }
+        }
+    </script>
+</body>
+
+</html>
